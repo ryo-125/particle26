@@ -2,42 +2,48 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>レーン避けゲーム</title>
     <style>
         body {
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f0f0f0;
+            background-color: #333;
+            color: white;
             font-family: sans-serif;
         }
+
+        /* ゲーム画面全体 */
         #game-container {
             position: relative;
             width: 400px;
-            height: 500px;
-            background-color: #eee;
-            border: 4px solid #333;
+            height: 600px;
+            background: white;
+            border: 4px solid #fff;
             overflow: hidden;
+            cursor: none;
         }
-        /* 資料に基づいたレーン設定 */
+
+        /* 灰色と水色のレーン */
         .lane {
             position: absolute;
             top: 0;
             width: 50%;
             height: 100%;
         }
-        .lane-gray { left: 0; background-color: #cccccc; } /* 灰色のレーン */
-        .lane-blue { left: 50%; background-color: #add8e6; } /* 水色のレーン */
+        .gray-lane { left: 0; background-color: #a0a0a0; }
+        .blue-lane { left: 50%; background-color: #87ceeb; }
 
         /* スコア表示 */
-        #score-display {
+        #score-board {
             position: absolute;
             top: 10px;
             left: 10px;
-            font-size: 20px;
+            font-size: 24px;
+            color: #333;
             font-weight: bold;
             z-index: 10;
         }
@@ -45,12 +51,12 @@
         /* プレイヤー（茶色い物体） */
         #player {
             position: absolute;
-            bottom: 20px;
-            width: 60px;
-            height: 30px;
+            bottom: 40px;
+            width: 50px;
+            height: 50px;
             background-color: #8b4513; /* 茶色 */
-            border-radius: 5px;
-            transition: left 0.1s ease-out;
+            border-radius: 8px;
+            z-index: 5;
         }
 
         /* 障害物（赤い物体） */
@@ -58,96 +64,90 @@
             position: absolute;
             width: 40px;
             height: 40px;
-            background-color: #ff4444; /* 赤 */
+            background-color: #ff4500; /* 赤色 */
             border-radius: 50%;
+            z-index: 4;
         }
     </style>
 </head>
 <body>
 
     <div id="game-container">
-        <div id="score-display">スコア: 0</div> 
-        <div class="lane lane-gray"></div>
-        <div class="lane lane-blue"></div>
+        <div id="score-board">Score: 0</div>
+        <div class="lane gray-lane"></div>
+        <div class="lane blue-lane"></div>
         <div id="player"></div>
     </div>
 
     <script>
         const container = document.getElementById('game-container');
         const player = document.getElementById('player');
-        const scoreElement = document.getElementById('score-display');
+        const scoreBoard = document.getElementById('score-board');
         
-        let score = 0; [cite: 1]
-        let playerX = 170; // プレイヤーの初期位置
-        let gameActive = true;
+        let score = 0;
+        let isGameOver = false;
 
-        // プレイヤーの操作（左右キーまたはマウス）
-        document.addEventListener('mousemove', (e) => {
-            if (!gameActive) return;
+        // プレイヤーの移動制限と追従
+        container.addEventListener('mousemove', (e) => {
+            if (isGameOver) return;
             const rect = container.getBoundingClientRect();
             let x = e.clientX - rect.left - (player.offsetWidth / 2);
-            // 動かせる範囲を制限
+            
+            // 枠内のみに移動範囲を制限
             if (x < 0) x = 0;
             if (x > container.offsetWidth - player.offsetWidth) x = container.offsetWidth - player.offsetWidth;
-            playerX = x;
-            player.style.left = playerX + 'px';
+            
+            player.style.left = x + 'px';
         });
 
         // 障害物の生成
-        function createObstacle() {
-            if (!gameActive) return;
+        function spawnObstacle() {
+            if (isGameOver) return;
 
-            const obstacle = document.createElement('div');
-            obstacle.className = 'obstacle';
-            
-            // どちらのレーンに出現するかランダム決定
-            const laneNum = Math.random() > 0.5 ? 0 : 1;
-            const startX = laneNum === 0 ? 70 : 270; // レーンの中央付近
-            
-            obstacle.style.left = startX + 'px';
-            obstacle.style.top = '-50px';
-            container.appendChild(obstacle);
+            const obs = document.createElement('div');
+            obs.className = 'obstacle';
+            // 左右どちらかのレーンにランダム生成
+            const lanePos = Math.random() > 0.5 ? 75 : 275;
+            obs.style.left = lanePos + 'px';
+            obs.style.top = '-50px';
+            container.appendChild(obs);
 
-            let topPos = -50;
-            const fallInterval = setInterval(() => {
-                if (!gameActive) {
-                    clearInterval(fallInterval);
-                    return;
-                }
+            let pos = -50;
+            const speed = 5 + (score * 0.1);
 
-                topPos += 5; // 落下速度
-                obstacle.style.top = topPos + 'px';
+            const timer = setInterval(() => {
+                if (isGameOver) { clearInterval(timer); return; }
+                
+                pos += speed;
+                obs.style.top = pos + 'px';
 
                 // 衝突判定
                 const pRect = player.getBoundingClientRect();
-                const oRect = obstacle.getBoundingClientRect();
+                const oRect = obs.getBoundingClientRect();
 
-                if (oRect.left < pRect.right &&
-                    oRect.right > pRect.left &&
-                    oRect.top < pRect.bottom &&
-                    oRect.bottom > pRect.top) {
+                if (oRect.bottom > pRect.top && 
+                    oRect.top < pRect.bottom && 
+                    oRect.left < pRect.right && 
+                    oRect.right > pRect.left) {
                     gameOver();
                 }
 
-                // 画面外に出た場合
-                if (topPos > container.offsetHeight) {
-                    clearInterval(fallInterval);
-                    container.removeChild(obstacle);
-                    score++; [cite: 1]
-                    scoreElement.innerText = "スコア: " + score; [cite: 1]
+                if (pos > 600) {
+                    clearInterval(timer);
+                    container.removeChild(obs);
+                    score++;
+                    scoreBoard.innerText = "Score: " + score;
                 }
             }, 20);
         }
 
         function gameOver() {
-            gameActive = false;
-            alert("ゲームオーバー！ スコア: " + score);
-            location.reload(); // ページをリロードしてリスタート
+            isGameOver = true;
+            alert("ゲーム終了！スコア: " + score);
+            location.reload();
         }
 
-        // 1秒ごとに障害物を生成
-        setInterval(createObstacle, 1000);
-
+        setInterval(spawnObstacle, 1000);
     </script>
 </body>
 </html>
