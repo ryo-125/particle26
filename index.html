@@ -1,153 +1,768 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>レーン避けゲーム</title>
-    <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #333;
-            color: white;
-            font-family: sans-serif;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>食いしん坊ねこちゃん</title>
 
-        /* ゲーム画面全体 */
-        #game-container {
-            position: relative;
-            width: 400px;
-            height: 600px;
-            background: white;
-            border: 4px solid #fff;
-            overflow: hidden;
-            cursor: none;
-        }
+<link href="https://fonts.googleapis.com/css2?family=Yomogi&display=swap" rel="stylesheet">
 
-        /* 灰色と水色のレーン */
-        .lane {
-            position: absolute;
-            top: 0;
-            width: 50%;
-            height: 100%;
-        }
-        .gray-lane { left: 0; background-color: #a0a0a0; }
-        .blue-lane { left: 50%; background-color: #87ceeb; }
+<style>
+body{
+  margin:0;
+  background:#f5e6d3;
+  text-align:center;
+  font-family:'Yomogi',cursive;
+}
 
-        /* スコア表示 */
-        #score-board {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            font-size: 24px;
-            color: #333;
-            font-weight: bold;
-            z-index: 10;
-        }
+h1{
+  margin:10px 0 5px;
+  font-size:32px;
+  color:#e6c9a8;
+  text-shadow:
+   -3px -3px 0 #fff,
+    3px -3px 0 #fff,
+   -3px  3px 0 #fff,
+    3px  3px 0 #fff,
+    0 4px 8px rgba(0,0,0,0.2);
+}
 
-        /* プレイヤー（茶色い物体） */
-        #player {
-            position: absolute;
-            bottom: 40px;
-            width: 50px;
-            height: 50px;
-            background-color: #8b4513; /* 茶色 */
-            border-radius: 8px;
-            z-index: 5;
-        }
+#scoreBox{
+  display:inline-block;
+  background:white;
+  padding:6px 18px;
+  border-radius:999px;
+  margin-bottom:5px;
+}
 
-        /* 障害物（赤い物体） */
-        .obstacle {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            background-color: #ff4500; /* 赤色 */
-            border-radius: 50%;
-            z-index: 4;
-        }
-    </style>
+#timer,#like,#lives{
+  margin-top:4px;
+}
+
+canvas{
+  background:white;
+  border:3px solid #d8bfa3;
+  border-radius:18px;
+  touch-action:none;
+}
+</style>
 </head>
+
 <body>
 
-    <div id="game-container">
-        <div id="score-board">Score: 0</div>
-        <div class="lane gray-lane"></div>
-        <div class="lane blue-lane"></div>
-        <div id="player"></div>
-    </div>
+<h1>🍽️ 食いしん坊ねこちゃん 🐈</h1>
 
-    <script>
-        const container = document.getElementById('game-container');
-        const player = document.getElementById('player');
-        const scoreBoard = document.getElementById('score-board');
-        
-        let score = 0;
-        let isGameOver = false;
+<div id="scoreBox">
+  スコア：<span id="score">0</span>
+</div>
 
-        // プレイヤーの移動制限と追従
-        container.addEventListener('mousemove', (e) => {
-            if (isGameOver) return;
-            const rect = container.getBoundingClientRect();
-            let x = e.clientX - rect.left - (player.offsetWidth / 2);
-            
-            // 枠内のみに移動範囲を制限
-            if (x < 0) x = 0;
-            if (x > container.offsetWidth - player.offsetWidth) x = container.offsetWidth - player.offsetWidth;
-            
-            player.style.left = x + 'px';
-        });
+<div id="like">
+  だいすき：🐟 🍅 🍌
+</div>
 
-        // 障害物の生成
-        function spawnObstacle() {
-            if (isGameOver) return;
+<div id="timer">
+  ⏳ <span id="time">03:00</span>
+</div>
 
-            const obs = document.createElement('div');
-            obs.className = 'obstacle';
-            // 左右どちらかのレーンにランダム生成
-            const lanePos = Math.random() > 0.5 ? 75 : 275;
-            obs.style.left = lanePos + 'px';
-            obs.style.top = '-50px';
-            container.appendChild(obs);
+<canvas id="game" width="360" height="500"></canvas>
 
-            let pos = -50;
-            const speed = 5 + (score * 0.1);
+<div id="lives"></div>
 
-            const timer = setInterval(() => {
-                if (isGameOver) { clearInterval(timer); return; }
-                
-                pos += speed;
-                obs.style.top = pos + 'px';
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-                // 衝突判定
-                const pRect = player.getBoundingClientRect();
-                const oRect = obs.getBoundingClientRect();
+const scoreEl = document.getElementById("score");
+const timeEl = document.getElementById("time");
+const livesEl = document.getElementById("lives");
 
-                if (oRect.bottom > pRect.top && 
-                    oRect.top < pRect.bottom && 
-                    oRect.left < pRect.right && 
-                    oRect.right > pRect.left) {
-                    gameOver();
-                }
+const lanes = 6;
+const laneWidth = canvas.width / lanes;
 
-                if (pos > 600) {
-                    clearInterval(timer);
-                    container.removeChild(obs);
-                    score++;
-                    scoreBoard.innerText = "Score: " + score;
-                }
-            }, 20);
+let score = 0;
+let lives = 9;
+let timer = 180;
+let frame = 0;
+
+let gameOver = false;
+let clear = false;
+
+let falling = [];
+let effects = [];
+
+let lastBad = "🍫";
+
+const badMessages = {
+  "🍫":"テオブロミンにより中毒を起こします。",
+  "🧅":"有機硫黄化合物で溶血性貧血を起こします。",
+  "🍇":"急性腎障害を引き起こす可能性があります。"
+};
+
+const cat = {
+  lane:2,
+  happy:0,
+  sad:0,
+  bounce:0,
+  shake:0,
+  power:0
+};
+
+/* =========================
+   ランダム袋
+========================= */
+
+let bag = [];
+
+function refillBag(){
+  bag = [
+    "🐟","🍅","🍌",
+    "🧅","🍫","🍇",
+
+    "🐟","🍅","🍌",
+    "🧅","🍫","🍇",
+
+    "🐟","🍅","🍌",
+
+    "🚬"
+  ];
+
+  bag.sort(()=>Math.random()-0.5);
+}
+
+function getFromBag(){
+  if(bag.length===0){
+    refillBag();
+  }
+  return bag.pop();
+}
+
+/* =========================
+   残機
+========================= */
+
+function updateLives(){
+  livesEl.textContent =
+    Array.from({length:9},(_,i)=>
+      i<lives ? "🐈" : "🐈‍⬛"
+    ).join("");
+}
+
+updateLives();
+
+/* =========================
+   時間
+========================= */
+
+function formatTime(sec){
+  let m = String(Math.floor(sec/60)).padStart(2,"0");
+  let s = String(sec%60).padStart(2,"0");
+  return `${m}:${s}`;
+}
+
+/* =========================
+   エフェクト
+========================= */
+
+function addEffect(x,y,color,count,size,spread,life){
+  for(let i=0;i<count;i++){
+    effects.push({
+      x,
+      y,
+      dx:(Math.random()-0.5)*spread,
+      dy:(Math.random()-0.5)*spread,
+      size,
+      color,
+      life,
+      maxLife:life
+    });
+  }
+}
+
+function addHeart(x,y){
+  for(let i=0;i<4;i++){
+    effects.push({
+      x,
+      y,
+      dx:(Math.random()-0.5)*2,
+      dy:-Math.random()*2-0.5,
+      heart:true,
+      life:25,
+      maxLife:25
+    });
+  }
+}
+
+/* =========================
+   出現
+========================= */
+
+function spawn(){
+
+  if(gameOver || clear) return;
+
+  const emoji = getFromBag();
+
+  falling.push({
+    lane:Math.floor(Math.random()*lanes),
+    y:-30,
+    emoji,
+    good:["🐟","🍅","🍌"].includes(emoji),
+    special:emoji==="🚬"
+  });
+}
+
+/* =========================
+   虹後光
+========================= */
+
+function drawHalo(cx,cy){
+
+  let x = cx + 10;
+  let y = cy - 10;
+
+  let g = ctx.createRadialGradient(
+    x,y,0,
+    x,y,50
+  );
+
+  g.addColorStop(0,"rgba(255,255,255,0.8)");
+  g.addColorStop(1,"rgba(255,255,255,0)");
+
+  ctx.fillStyle = g;
+
+  ctx.beginPath();
+  ctx.arc(x,y,50,0,Math.PI*2);
+  ctx.fill();
+
+  for(let i=0;i<12;i++){
+
+    let angle = i*(Math.PI*2/12);
+
+    ctx.beginPath();
+
+    ctx.moveTo(x,y);
+
+    ctx.lineTo(
+      x + Math.cos(angle)*60,
+      y + Math.sin(angle)*60
+    );
+
+    ctx.strokeStyle =
+      `hsla(${i*30},100%,70%,0.45)`;
+
+    ctx.lineWidth = 3;
+
+    ctx.stroke();
+  }
+}
+
+/* =========================
+   リスタート
+========================= */
+
+function resetGame(){
+
+  score = 0;
+  lives = 9;
+  timer = 180;
+  frame = 0;
+
+  gameOver = false;
+  clear = false;
+
+  falling = [];
+  effects = [];
+
+  cat.lane = 2;
+  cat.happy = 0;
+  cat.sad = 0;
+  cat.bounce = 0;
+  cat.shake = 0;
+  cat.power = 0;
+
+  scoreEl.textContent = score;
+  timeEl.textContent = formatTime(timer);
+
+  updateLives();
+
+  refillBag();
+}
+
+/* =========================
+   終了画面
+========================= */
+
+function drawEndScreen(){
+
+  ctx.fillStyle = clear
+    ? "rgba(255,255,120,0.35)"
+    : "rgba(0,0,0,0.55)";
+
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.textAlign = "center";
+
+  ctx.fillStyle = "white";
+
+  ctx.font = "32px Yomogi";
+
+  ctx.fillText(
+    clear ? "クリア！" : "ゲームオーバー",
+    canvas.width/2,
+    200
+  );
+
+  ctx.font = "18px Yomogi";
+
+  let message = clear
+    ? "だいすきをたくさん集められました。"
+    : badMessages[lastBad];
+
+  wrapText(
+    message,
+    canvas.width/2,
+    250,
+    280,
+    28
+  );
+
+  // ボタン
+
+  ctx.fillStyle = "white";
+
+  roundRect(90,320,180,50,25,true);
+
+  ctx.strokeStyle = "#d8bfa3";
+  roundRect(90,320,180,50,25,false);
+
+  ctx.fillStyle = "#444";
+
+  ctx.font = "20px Yomogi";
+
+  ctx.fillText(
+    "もう一回あそぶ",
+    canvas.width/2,
+    352
+  );
+
+  ctx.textAlign = "start";
+}
+
+function wrapText(text,x,y,maxWidth,lineHeight){
+
+  let line = "";
+
+  for(let i=0;i<text.length;i++){
+
+    let test = line + text[i];
+
+    if(ctx.measureText(test).width > maxWidth){
+
+      ctx.fillText(line,x,y);
+
+      line = text[i];
+
+      y += lineHeight;
+
+    }else{
+
+      line = test;
+    }
+  }
+
+  ctx.fillText(line,x,y);
+}
+
+function roundRect(x,y,w,h,r,fill){
+
+  ctx.beginPath();
+
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+
+  if(fill) ctx.fill();
+  else ctx.stroke();
+}
+
+/* =========================
+   メイン
+========================= */
+
+function update(){
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // レーン
+
+  for(let i=0;i<lanes;i++){
+
+    ctx.fillStyle =
+      i%2===0
+      ? "#d0f0ff"
+      : "#ffd6e7";
+
+    ctx.fillRect(
+      i*laneWidth,
+      0,
+      laneWidth,
+      canvas.height
+    );
+  }
+
+  // 終了中停止
+
+  if(gameOver || clear){
+
+    drawEndScreen();
+    return;
+  }
+
+  frame++;
+
+  // タイマー
+
+  if(frame % 30 === 0){
+
+    timer--;
+
+    timeEl.textContent =
+      formatTime(timer);
+
+    if(timer <= 0){
+      clear = true;
+    }
+  }
+
+  // 出現
+
+  let spawnSpeed =
+    Math.max(20,40-Math.floor(frame/900));
+
+  if(frame % spawnSpeed === 0){
+    spawn();
+  }
+
+  // 落下
+
+  ctx.font = "30px Yomogi";
+
+  for(let i=falling.length-1;i>=0;i--){
+
+    const f = falling[i];
+
+    let speed =
+      f.good || f.special
+      ? 2
+      : 2 + frame*0.0007;
+
+    f.y += speed;
+
+    let x = f.lane*laneWidth + 12;
+
+    // 後ろエフェクト
+
+    if(f.good){
+
+      addEffect(
+        x+15,
+        f.y,
+        "white",
+        1,
+        5,
+        0.3,
+        10
+      );
+    }
+
+    if(f.special){
+
+      addEffect(
+        x+15,
+        f.y,
+        "gold",
+        1,
+        7,
+        0.2,
+        12
+      );
+    }
+
+    // 絵文字
+
+    ctx.fillText(
+      f.emoji,
+      x,
+      f.y
+    );
+
+    // 当たり判定
+
+    if(
+      f.y > canvas.height-70 &&
+      f.lane === cat.lane
+    ){
+
+      let ex = x+15;
+      let ey = canvas.height-60;
+
+      if(f.special){
+
+        lives =
+          Math.min(9,lives+1);
+
+        cat.power = 40;
+
+        addEffect(
+          ex,ey,
+          "gold",
+          12,
+          8,
+          2,
+          20
+        );
+
+      }
+      else if(f.good){
+
+        score += 100;
+
+        cat.happy = 20;
+        cat.bounce = 20;
+
+        addHeart(ex,ey);
+
+      }
+      else{
+
+        lives--;
+
+        lastBad = f.emoji;
+
+        cat.sad = 18;
+        cat.shake = 18;
+
+        if(lives<=0){
+          gameOver = true;
         }
+      }
 
-        function gameOver() {
-            isGameOver = true;
-            alert("ゲーム終了！スコア: " + score);
-            location.reload();
-        }
+      updateLives();
 
-        setInterval(spawnObstacle, 1000);
-    </script>
+      scoreEl.textContent = score;
+
+      falling.splice(i,1);
+
+      continue;
+    }
+
+    if(f.y > canvas.height+40){
+      falling.splice(i,1);
+    }
+  }
+
+  // エフェクト描画
+
+  for(let i=effects.length-1;i>=0;i--){
+
+    let e = effects[i];
+
+    e.life--;
+
+    e.x += e.dx;
+    e.y += e.dy;
+
+    if(e.heart){
+
+      ctx.globalAlpha =
+        e.life/e.maxLife;
+
+      ctx.fillText(
+        "💖",
+        e.x,
+        e.y
+      );
+    }
+    else{
+
+      ctx.globalAlpha =
+        0.25*(e.life/e.maxLife);
+
+      ctx.fillStyle = e.color;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        e.x,
+        e.y,
+        e.size,
+        0,
+        Math.PI*2
+      );
+
+      ctx.fill();
+    }
+
+    ctx.globalAlpha = 1;
+
+    if(e.life<=0){
+      effects.splice(i,1);
+    }
+  }
+
+  // ネコ状態
+
+  if(cat.happy>0) cat.happy--;
+  if(cat.sad>0) cat.sad--;
+  if(cat.bounce>0) cat.bounce--;
+  if(cat.shake>0) cat.shake--;
+  if(cat.power>0) cat.power--;
+
+  // ネコ
+
+  let cx =
+    cat.lane*laneWidth + 25;
+
+  let cy =
+    canvas.height-25
+    - Math.sin(cat.bounce*0.5)*10;
+
+  let shake =
+    cat.shake>0
+    ? (Math.random()-0.5)*6
+    : 0;
+
+  if(cat.power>0){
+    drawHalo(cx,cy);
+  }
+
+  let face = "😺";
+
+  if(cat.sad>0){
+    face = "🙀";
+  }
+  else if(cat.happy>0){
+    face = "😻";
+  }
+
+  ctx.save();
+
+  ctx.translate(cx+shake,cy);
+
+  if(cat.power>0){
+
+    let scale =
+      1 + (cat.power/40)*0.5;
+
+    ctx.scale(scale,scale);
+  }
+
+  ctx.font = "42px Yomogi";
+
+  ctx.fillText(face,-20,0);
+
+  ctx.restore();
+}
+
+/* =========================
+   操作
+========================= */
+
+let startX = null;
+
+canvas.addEventListener("touchstart",e=>{
+  startX = e.touches[0].clientX;
+});
+
+canvas.addEventListener("touchend",e=>{
+
+  if(gameOver || clear){
+
+    let rect =
+      canvas.getBoundingClientRect();
+
+    let x =
+      e.changedTouches[0].clientX
+      - rect.left;
+
+    let y =
+      e.changedTouches[0].clientY
+      - rect.top;
+
+    if(
+      x>90 && x<270 &&
+      y>320 && y<370
+    ){
+      resetGame();
+    }
+
+    return;
+  }
+
+  let dx =
+    e.changedTouches[0].clientX
+    - startX;
+
+  if(dx>30 && cat.lane<5){
+    cat.lane++;
+  }
+
+  if(dx<-30 && cat.lane>0){
+    cat.lane--;
+  }
+});
+
+canvas.addEventListener("mousedown",e=>{
+  startX = e.clientX;
+});
+
+canvas.addEventListener("mouseup",e=>{
+
+  if(gameOver || clear){
+
+    let rect =
+      canvas.getBoundingClientRect();
+
+    let x = e.clientX - rect.left;
+    let y = e.clientY - rect.top;
+
+    if(
+      x>90 && x<270 &&
+      y>320 && y<370
+    ){
+      resetGame();
+    }
+
+    return;
+  }
+
+  let dx = e.clientX - startX;
+
+  if(dx>30 && cat.lane<5){
+    cat.lane++;
+  }
+
+  if(dx<-30 && cat.lane>0){
+    cat.lane--;
+  }
+});
+
+/* ========================= */
+
+resetGame();
+
+setInterval(update,30);
+
+</script>
+
 </body>
 </html>
