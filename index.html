@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>食いしん坊ねこちゃん</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Yomogi&display=swap" rel="stylesheet">
@@ -19,6 +20,7 @@ h1{
   margin:10px 0 5px;
   font-size:32px;
   color:#e6c9a8;
+
   text-shadow:
    -3px -3px 0 #fff,
     3px -3px 0 #fff,
@@ -28,19 +30,20 @@ h1{
 }
 
 #scoreBox{
-  display:inline-block;
   background:white;
-  padding:6px 18px;
+  display:inline-block;
+  padding:6px 16px;
   border-radius:999px;
   margin-bottom:5px;
 }
 
-#timer,#like,#lives{
-  margin-top:4px;
+#like,#timer,#lives{
+  margin-top:5px;
+  font-size:18px;
 }
 
 canvas{
-  background:white;
+  background:#fff;
   border:3px solid #d8bfa3;
   border-radius:18px;
   touch-action:none;
@@ -53,15 +56,15 @@ canvas{
 <h1>🍽️ 食いしん坊ねこちゃん 🐈</h1>
 
 <div id="scoreBox">
-  スコア：<span id="score">0</span>
+スコア：<span id="score">0</span>
 </div>
 
 <div id="like">
-  だいすき：🐟 🍅 🍌
+だいすき：🐟 🍅 🍌
 </div>
 
 <div id="timer">
-  ⏳ <span id="time">03:00</span>
+⏳ <span id="time">03:00</span>
 </div>
 
 <canvas id="game" width="360" height="500"></canvas>
@@ -87,33 +90,30 @@ let frame = 0;
 let gameOver = false;
 let clear = false;
 
+let lastBad = "🍫";
+
 let falling = [];
 let effects = [];
 
-let lastBad = "🍫";
-
 const badMessages = {
-  "🍫":"テオブロミンにより中毒を起こします。",
-  "🧅":"有機硫黄化合物で溶血性貧血を起こします。",
-  "🍇":"急性腎障害を引き起こす可能性があります。"
+  "🍫":"チョコレートに含まれるテオブロミンは、猫では代謝が遅く中毒を引き起こします。",
+  "🧅":"たまねぎに含まれる有機硫黄化合物（アリルプロピルジスルフィドなど）は、赤血球を酸化させ溶血性貧血を起こします。",
+  "🍇":"ぶどうは原因物質は特定されていませんが、摂取により急性腎障害を引き起こすことがあります。"
 };
 
 const cat = {
   lane:2,
-  happy:0,
-  sad:0,
+  happyTimer:0,
+  sadTimer:0,
   bounce:0,
   shake:0,
   power:0
 };
 
-/* =========================
-   ランダム袋
-========================= */
-
 let bag = [];
 
 function refillBag(){
+
   bag = [
     "🐟","🍅","🍌",
     "🧅","🍫","🍇",
@@ -130,73 +130,39 @@ function refillBag(){
 }
 
 function getFromBag(){
+
   if(bag.length===0){
     refillBag();
   }
+
   return bag.pop();
 }
 
-/* =========================
-   残機
-========================= */
-
 function updateLives(){
-  livesEl.textContent =
-    Array.from({length:9},(_,i)=>
-      i<lives ? "🐈" : "🐈‍⬛"
-    ).join("");
+
+  let text = "";
+
+  for(let i=0;i<9;i++){
+    text += i<lives ? "🐈" : "🐈‍⬛";
+  }
+
+  livesEl.textContent = text;
 }
 
-updateLives();
-
-/* =========================
-   時間
-========================= */
-
 function formatTime(sec){
-  let m = String(Math.floor(sec/60)).padStart(2,"0");
-  let s = String(sec%60).padStart(2,"0");
+
+  let m =
+    String(Math.floor(sec/60))
+    .padStart(2,"0");
+
+  let s =
+    String(sec%60)
+    .padStart(2,"0");
+
   return `${m}:${s}`;
 }
 
-/* =========================
-   エフェクト
-========================= */
-
-function addEffect(x,y,color,count,size,spread,life){
-  for(let i=0;i<count;i++){
-    effects.push({
-      x,
-      y,
-      dx:(Math.random()-0.5)*spread,
-      dy:(Math.random()-0.5)*spread,
-      size,
-      color,
-      life,
-      maxLife:life
-    });
-  }
-}
-
-function addHeart(x,y){
-  for(let i=0;i<4;i++){
-    effects.push({
-      x,
-      y,
-      dx:(Math.random()-0.5)*2,
-      dy:-Math.random()*2-0.5,
-      heart:true,
-      life:25,
-      maxLife:25
-    });
-  }
-}
-
-/* =========================
-   出現
-========================= */
-
-function spawn(){
+function spawnItem(){
 
   if(gameOver || clear) return;
 
@@ -204,61 +170,78 @@ function spawn(){
 
   falling.push({
     lane:Math.floor(Math.random()*lanes),
-    y:-30,
+    y:0,
     emoji,
     good:["🐟","🍅","🍌"].includes(emoji),
     special:emoji==="🚬"
   });
 }
 
-/* =========================
-   虹後光
-========================= */
+function addSparkle(x,y){
 
-function drawHalo(cx,cy){
+  for(let i=0;i<4;i++){
 
-  let x = cx + 10;
-  let y = cy - 10;
-
-  let g = ctx.createRadialGradient(
-    x,y,0,
-    x,y,50
-  );
-
-  g.addColorStop(0,"rgba(255,255,255,0.8)");
-  g.addColorStop(1,"rgba(255,255,255,0)");
-
-  ctx.fillStyle = g;
-
-  ctx.beginPath();
-  ctx.arc(x,y,50,0,Math.PI*2);
-  ctx.fill();
-
-  for(let i=0;i<12;i++){
-
-    let angle = i*(Math.PI*2/12);
-
-    ctx.beginPath();
-
-    ctx.moveTo(x,y);
-
-    ctx.lineTo(
-      x + Math.cos(angle)*60,
-      y + Math.sin(angle)*60
-    );
-
-    ctx.strokeStyle =
-      `hsla(${i*30},100%,70%,0.45)`;
-
-    ctx.lineWidth = 3;
-
-    ctx.stroke();
+    effects.push({
+      cx:x,
+      cy:y,
+      angle:Math.random()*Math.PI*2,
+      radius:10+Math.random()*10,
+      speed:0.03,
+      life:18,
+      alpha:0.2,
+      size:4,
+      color:"white"
+    });
   }
 }
 
-/* =========================
-   リスタート
-========================= */
+function addSpecial(x,y){
+
+  for(let i=0;i<6;i++){
+
+    effects.push({
+      cx:x,
+      cy:y,
+      angle:Math.random()*Math.PI*2,
+      radius:15+Math.random()*10,
+      speed:0.04,
+      life:20,
+      alpha:0.4,
+      size:4,
+      color:"gold",
+      special:true
+    });
+  }
+}
+
+function addBurst(x,y){
+
+  for(let i=0;i<3;i++){
+
+    effects.push({
+      x,
+      y,
+      dx:(Math.random()-0.5)*2,
+      dy:(Math.random()-0.5)*2,
+      life:12
+    });
+  }
+}
+
+function addHeart(x,y){
+
+  for(let i=0;i<5;i++){
+
+    effects.push({
+      x,
+      y,
+      dx:(Math.random()-0.5),
+      dy:-Math.random()*2,
+      life:25,
+      heart:true
+    });
+  }
+}
 
 function resetGame(){
 
@@ -270,82 +253,24 @@ function resetGame(){
   gameOver = false;
   clear = false;
 
+  lastBad = "🍫";
+
   falling = [];
   effects = [];
 
   cat.lane = 2;
-  cat.happy = 0;
-  cat.sad = 0;
+  cat.happyTimer = 0;
+  cat.sadTimer = 0;
   cat.bounce = 0;
   cat.shake = 0;
   cat.power = 0;
 
-  scoreEl.textContent = score;
-  timeEl.textContent = formatTime(timer);
+  scoreEl.textContent = 0;
+  timeEl.textContent = "03:00";
 
   updateLives();
 
   refillBag();
-}
-
-/* =========================
-   終了画面
-========================= */
-
-function drawEndScreen(){
-
-  ctx.fillStyle = clear
-    ? "rgba(255,255,120,0.35)"
-    : "rgba(0,0,0,0.55)";
-
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  ctx.textAlign = "center";
-
-  ctx.fillStyle = "white";
-
-  ctx.font = "32px Yomogi";
-
-  ctx.fillText(
-    clear ? "クリア！" : "ゲームオーバー",
-    canvas.width/2,
-    200
-  );
-
-  ctx.font = "18px Yomogi";
-
-  let message = clear
-    ? "だいすきをたくさん集められました。"
-    : badMessages[lastBad];
-
-  wrapText(
-    message,
-    canvas.width/2,
-    250,
-    280,
-    28
-  );
-
-  // ボタン
-
-  ctx.fillStyle = "white";
-
-  roundRect(90,320,180,50,25,true);
-
-  ctx.strokeStyle = "#d8bfa3";
-  roundRect(90,320,180,50,25,false);
-
-  ctx.fillStyle = "#444";
-
-  ctx.font = "20px Yomogi";
-
-  ctx.fillText(
-    "もう一回あそぶ",
-    canvas.width/2,
-    352
-  );
-
-  ctx.textAlign = "start";
 }
 
 function wrapText(text,x,y,maxWidth,lineHeight){
@@ -394,15 +319,58 @@ function roundRect(x,y,w,h,r,fill){
   else ctx.stroke();
 }
 
-/* =========================
-   メイン
-========================= */
+function drawEnd(){
+
+  ctx.fillStyle = clear
+    ? "rgba(255,255,120,0.35)"
+    : "rgba(0,0,0,0.55)";
+
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle = "white";
+
+  ctx.textAlign = "center";
+
+  ctx.font = "32px Yomogi";
+
+  ctx.fillText(
+    clear ? "クリア！" : "ゲームオーバー",
+    canvas.width/2,
+    180
+  );
+
+  ctx.font = "16px Yomogi";
+
+  const msg = clear
+    ? "だいすきをいっぱい食べられました。"
+    : badMessages[lastBad];
+
+  wrapText(msg,canvas.width/2,230,280,26);
+
+  ctx.fillStyle = "white";
+
+  roundRect(90,330,180,50,25,true);
+
+  ctx.strokeStyle = "#d8bfa3";
+
+  roundRect(90,330,180,50,25,false);
+
+  ctx.fillStyle = "#444";
+
+  ctx.font = "20px Yomogi";
+
+  ctx.fillText(
+    "もう一回あそぶ",
+    canvas.width/2,
+    362
+  );
+
+  ctx.textAlign = "start";
+}
 
 function update(){
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // レーン
 
   for(let i=0;i<lanes;i++){
 
@@ -419,17 +387,13 @@ function update(){
     );
   }
 
-  // 終了中停止
-
   if(gameOver || clear){
 
-    drawEndScreen();
+    drawEnd();
     return;
   }
 
   frame++;
-
-  // タイマー
 
   if(frame % 30 === 0){
 
@@ -438,108 +402,141 @@ function update(){
     timeEl.textContent =
       formatTime(timer);
 
-    if(timer <= 0){
+    if(timer<=0){
       clear = true;
     }
   }
 
-  // 出現
+  let spawnCount =
+    1 + Math.floor(frame / 2400);
+
+  spawnCount = Math.min(spawnCount,3);
 
   let spawnSpeed =
-    Math.max(20,40-Math.floor(frame/900));
+    Math.max(
+      26,
+      44 - Math.floor(frame/1800)
+    );
 
   if(frame % spawnSpeed === 0){
-    spawn();
+
+    for(let i=0;i<spawnCount;i++){
+      spawnItem();
+    }
+  }
+
+  // エフェクト
+  for(let i=effects.length-1;i>=0;i--){
+
+    let e = effects[i];
+
+    e.life--;
+
+    if(e.heart){
+
+      e.x += e.dx;
+      e.y += e.dy;
+
+      ctx.font = "20px sans-serif";
+
+      ctx.fillText("💖",e.x,e.y);
+
+    }
+    else if(e.cx === undefined){
+
+      e.x += e.dx;
+      e.y += e.dy;
+
+      ctx.fillStyle = "white";
+
+      ctx.fillRect(e.x,e.y,3,3);
+
+    }
+    else{
+
+      e.angle += e.speed;
+
+      let x =
+        e.cx + Math.cos(e.angle)*e.radius;
+
+      let y =
+        e.cy + Math.sin(e.angle)*e.radius;
+
+      ctx.globalAlpha = e.alpha;
+
+      ctx.fillStyle = e.color;
+
+      ctx.fillRect(x,y,e.size,e.size);
+
+      ctx.globalAlpha = 1;
+
+      if(e.special && Math.random()<0.01){
+        addBurst(x,y);
+      }
+    }
+
+    if(e.life<=0){
+      effects.splice(i,1);
+    }
   }
 
   // 落下
-
-  ctx.font = "30px Yomogi";
-
   for(let i=falling.length-1;i>=0;i--){
 
-    const f = falling[i];
+    let f = falling[i];
 
     let speed =
-      f.good || f.special
+      (f.good || f.special)
       ? 2
       : 2 + frame*0.0007;
 
     f.y += speed;
 
-    let x = f.lane*laneWidth + 12;
+    let x =
+      f.lane*laneWidth + 10;
 
-    // 後ろエフェクト
+    ctx.font = "28px sans-serif";
+
+    ctx.fillText(f.emoji,x,f.y);
 
     if(f.good){
-
-      addEffect(
-        x+15,
-        f.y,
-        "white",
-        1,
-        5,
-        0.3,
-        10
-      );
+      addSparkle(x+15,f.y);
     }
 
     if(f.special){
-
-      addEffect(
-        x+15,
-        f.y,
-        "gold",
-        1,
-        7,
-        0.2,
-        12
-      );
+      addSpecial(x+15,f.y);
     }
 
-    // 絵文字
-
-    ctx.fillText(
-      f.emoji,
-      x,
-      f.y
-    );
-
-    // 当たり判定
-
     if(
-      f.y > canvas.height-70 &&
+      f.y > canvas.height-60 &&
       f.lane === cat.lane
     ){
 
-      let ex = x+15;
-      let ey = canvas.height-60;
+      let cx =
+        f.lane*laneWidth + 20;
+
+      let cy =
+        canvas.height-60;
 
       if(f.special){
 
         lives =
           Math.min(9,lives+1);
 
-        cat.power = 40;
+        cat.power = 30;
 
-        addEffect(
-          ex,ey,
-          "gold",
-          12,
-          8,
-          2,
-          20
-        );
+        addSpecial(cx,cy);
+        addBurst(cx,cy);
 
       }
       else if(f.good){
 
         score += 100;
 
-        cat.happy = 20;
-        cat.bounce = 20;
+        cat.happyTimer = 20;
+        cat.bounce = 16;
 
-        addHeart(ex,ey);
+        addHeart(cx,cy);
 
       }
       else{
@@ -548,7 +545,7 @@ function update(){
 
         lastBad = f.emoji;
 
-        cat.sad = 18;
+        cat.sadTimer = 18;
         cat.shake = 18;
 
         if(lives<=0){
@@ -565,117 +562,136 @@ function update(){
       continue;
     }
 
-    if(f.y > canvas.height+40){
+    if(f.y > canvas.height){
       falling.splice(i,1);
     }
   }
 
-  // エフェクト描画
-
-  for(let i=effects.length-1;i>=0;i--){
-
-    let e = effects[i];
-
-    e.life--;
-
-    e.x += e.dx;
-    e.y += e.dy;
-
-    if(e.heart){
-
-      ctx.globalAlpha =
-        e.life/e.maxLife;
-
-      ctx.fillText(
-        "💖",
-        e.x,
-        e.y
-      );
-    }
-    else{
-
-      ctx.globalAlpha =
-        0.25*(e.life/e.maxLife);
-
-      ctx.fillStyle = e.color;
-
-      ctx.beginPath();
-
-      ctx.arc(
-        e.x,
-        e.y,
-        e.size,
-        0,
-        Math.PI*2
-      );
-
-      ctx.fill();
-    }
-
-    ctx.globalAlpha = 1;
-
-    if(e.life<=0){
-      effects.splice(i,1);
-    }
-  }
-
-  // ネコ状態
-
-  if(cat.happy>0) cat.happy--;
-  if(cat.sad>0) cat.sad--;
+  if(cat.happyTimer>0) cat.happyTimer--;
+  if(cat.sadTimer>0) cat.sadTimer--;
   if(cat.bounce>0) cat.bounce--;
   if(cat.shake>0) cat.shake--;
   if(cat.power>0) cat.power--;
-
-  // ネコ
-
-  let cx =
-    cat.lane*laneWidth + 25;
-
-  let cy =
-    canvas.height-25
-    - Math.sin(cat.bounce*0.5)*10;
 
   let shake =
     cat.shake>0
     ? (Math.random()-0.5)*6
     : 0;
 
-  if(cat.power>0){
-    drawHalo(cx,cy);
-  }
+  let bounce =
+    Math.sin(cat.bounce*0.8)*10;
 
   let face = "😺";
 
-  if(cat.sad>0){
+  if(cat.sadTimer>0){
     face = "🙀";
   }
-  else if(cat.happy>0){
+  else if(cat.happyTimer>0){
     face = "😻";
   }
 
+  let catX =
+    cat.lane*laneWidth + 30;
+
+  let catY =
+    canvas.height - 20 - bounce;
+
   ctx.save();
 
-  ctx.translate(cx+shake,cy);
+  ctx.translate(catX + shake,catY);
 
+  // 🚬エフェクト
   if(cat.power>0){
 
+    const glow =
+      cat.power / 30;
+
+    // 後光
+    const grad =
+      ctx.createRadialGradient(
+        10,-15,5,
+        10,-15,70
+      );
+
+    grad.addColorStop(
+      0,
+      `rgba(255,255,220,${0.45*glow})`
+    );
+
+    grad.addColorStop(
+      0.3,
+      `rgba(255,220,120,${0.28*glow})`
+    );
+
+    grad.addColorStop(
+      0.6,
+      `rgba(255,180,255,${0.16*glow})`
+    );
+
+    grad.addColorStop(
+      1,
+      "rgba(255,255,255,0)"
+    );
+
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+
+    ctx.arc(10,-15,70,0,Math.PI*2);
+
+    ctx.fill();
+
+    // キラキラ
+    for(let i=0;i<6;i++){
+
+      const angle =
+        frame*0.03 + i;
+
+      const r =
+        35 + Math.sin(frame*0.05+i)*8;
+
+      const px =
+        Math.cos(angle)*r;
+
+      const py =
+        Math.sin(angle)*r - 10;
+
+      ctx.globalAlpha =
+        0.5 * glow;
+
+      ctx.fillStyle = "gold";
+
+      ctx.fillRect(px,py,5,5);
+    }
+
+    ctx.globalAlpha = 1;
+
+    // じわっと拡大
     let scale =
-      1 + (cat.power/40)*0.5;
+      1 + (cat.power/30)*0.35;
 
     ctx.scale(scale,scale);
   }
 
-  ctx.font = "42px Yomogi";
+  ctx.font = "40px sans-serif";
 
   ctx.fillText(face,-20,0);
 
   ctx.restore();
 }
 
-/* =========================
-   操作
-========================= */
+function moveByDelta(dx){
+
+  if(gameOver || clear) return;
+
+  if(dx<0 && cat.lane>0){
+    cat.lane--;
+  }
+
+  if(dx>0 && cat.lane<lanes-1){
+    cat.lane++;
+  }
+}
 
 let startX = null;
 
@@ -700,7 +716,7 @@ canvas.addEventListener("touchend",e=>{
 
     if(
       x>90 && x<270 &&
-      y>320 && y<370
+      y>330 && y<380
     ){
       resetGame();
     }
@@ -708,21 +724,19 @@ canvas.addEventListener("touchend",e=>{
     return;
   }
 
-  let dx =
-    e.changedTouches[0].clientX
-    - startX;
+  if(!startX) return;
 
-  if(dx>30 && cat.lane<5){
-    cat.lane++;
-  }
+  moveByDelta(
+    e.changedTouches[0].clientX - startX
+  );
 
-  if(dx<-30 && cat.lane>0){
-    cat.lane--;
-  }
+  startX = null;
 });
 
+let mouseX = null;
+
 canvas.addEventListener("mousedown",e=>{
-  startX = e.clientX;
+  mouseX = e.clientX;
 });
 
 canvas.addEventListener("mouseup",e=>{
@@ -737,7 +751,7 @@ canvas.addEventListener("mouseup",e=>{
 
     if(
       x>90 && x<270 &&
-      y>320 && y<370
+      y>330 && y<380
     ){
       resetGame();
     }
@@ -745,19 +759,14 @@ canvas.addEventListener("mouseup",e=>{
     return;
   }
 
-  let dx = e.clientX - startX;
+  if(mouseX===null) return;
 
-  if(dx>30 && cat.lane<5){
-    cat.lane++;
-  }
+  moveByDelta(e.clientX - mouseX);
 
-  if(dx<-30 && cat.lane>0){
-    cat.lane--;
-  }
+  mouseX = null;
 });
 
-/* ========================= */
-
+updateLives();
 resetGame();
 
 setInterval(update,30);
