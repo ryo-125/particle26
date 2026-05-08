@@ -425,7 +425,6 @@ function update(){
     }
   }
 
-  // エフェクト
   for(let i=effects.length-1;i>=0;i--){
 
     let e = effects[i];
@@ -480,7 +479,6 @@ function update(){
     }
   }
 
-  // 落下
   for(let i=falling.length-1;i>=0;i--){
 
     let f = falling[i];
@@ -600,64 +598,86 @@ function update(){
 
   ctx.translate(catX + shake,catY);
 
-  // 🚬エフェクト
+  // 🌈🚬エフェクト
   if(cat.power>0){
 
     const glow =
       cat.power / 30;
 
-    // 後光
-    const grad =
-      ctx.createRadialGradient(
-        10,-15,5,
-        10,-15,70
+    // 🌈360°虹オーラ
+    const colors = [
+      "255,80,80",
+      "255,170,80",
+      "255,255,120",
+      "120,255,120",
+      "120,220,255",
+      "140,140,255",
+      "255,120,255"
+    ];
+
+    for(let i=0;i<7;i++){
+
+      ctx.beginPath();
+
+      ctx.strokeStyle =
+        `rgba(${colors[i]},${0.18*glow})`;
+
+      ctx.lineWidth =
+        18 - i*2;
+
+      ctx.arc(
+        10,
+        -10,
+        42 + i*4,
+        0,
+        Math.PI*2
       );
 
-    grad.addColorStop(
+      ctx.stroke();
+    }
+
+    // 白い発光
+    const shine =
+      ctx.createRadialGradient(
+        10,-10,10,
+        10,-10,85
+      );
+
+    shine.addColorStop(
       0,
-      `rgba(255,255,220,${0.45*glow})`
+      `rgba(255,255,255,${0.25*glow})`
     );
 
-    grad.addColorStop(
-      0.3,
-      `rgba(255,220,120,${0.28*glow})`
-    );
-
-    grad.addColorStop(
-      0.6,
-      `rgba(255,180,255,${0.16*glow})`
-    );
-
-    grad.addColorStop(
+    shine.addColorStop(
       1,
       "rgba(255,255,255,0)"
     );
 
-    ctx.fillStyle = grad;
+    ctx.fillStyle = shine;
 
     ctx.beginPath();
 
-    ctx.arc(10,-15,70,0,Math.PI*2);
+    ctx.arc(10,-10,85,0,Math.PI*2);
 
     ctx.fill();
 
-    // キラキラ
-    for(let i=0;i<6;i++){
+    // 金キラ
+    for(let i=0;i<7;i++){
 
       const angle =
-        frame*0.03 + i;
+        frame*0.04 + i;
 
       const r =
-        35 + Math.sin(frame*0.05+i)*8;
+        45 + Math.sin(frame*0.06+i)*10;
 
       const px =
         Math.cos(angle)*r;
 
       const py =
-        Math.sin(angle)*r - 10;
+        Math.sin(angle)*r;
 
       ctx.globalAlpha =
-        0.5 * glow;
+        0.6 * glow;
 
       ctx.fillStyle = "gold";
 
@@ -666,7 +686,7 @@ function update(){
 
     ctx.globalAlpha = 1;
 
-    // じわっと拡大
+    // じわっと巨大化
     let scale =
       1 + (cat.power/30)*0.35;
 
